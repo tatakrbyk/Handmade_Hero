@@ -1,51 +1,89 @@
  
 #include <windows.h>
+#include <stdint.h>
 
 #define internal static
 #define local_persist static;
 #define global_variable static;
 
+typedef uint8_t uint8;
+typedef uint16_t uint16;
+typedef uint32_t uint32;
+typedef uint64_t uint64;
+
+typedef int8_t int8;
+typedef int16_t int16;
+typedef int32_t int32;
+typedef int64_t int64;
+
 global_variable bool Running;
+
 global_variable BITMAPINFO BitmapInfo;
 global_variable void *BitmapMemory;
-global_variable HBITMAP BitmapHandle;
-global_variable HDC BitmapDeviceContext;
+global_variable int BitmapWidth;
+global_variable int BitmapHeight;
+global_variable int BytesPerPixel = 4;
 
-internal void Win32ResizeDIBSection(int Width, int Height)
+internal void
+RenderWirdGradiend(int Xoffset, int Yoffset)
+{
+  int Pitch = BitmapWidth * BytesPerPixel;
+  uint8 *Row = (uint8 *)BitmapMemory;
+
+  for(int y = 0; y < BitmapHeight; ++y)
+  {
+    uint32 *Pixel = (uint32*)Row;
+
+    for(int x = 0; x < BitmapHeight; ++x)
+    {
+      uint8 g = (y + Yoffset);
+      uint8 b = (x + Xoffset);
+
+      /*
+	Memory:   BB GG RR XX
+	Register: XX RR GG BB
+	Pixel (32-bits)
+      */
+
+      *Pixel++ = (g << 8) | b;
+    }
+    Row += Pitch;
+  }
+}
+
+internal void
+Win32ResizeDIBSection(int Width, int Height)
 {
   // TODO: bulletproof this;
   // maybe dont free first, free after then free first it that fails
 
-  if(BitmapHandle)
+  if(BitmapMemory)
   {
-    DeleteObject(BitmapHandle);
+    VirtualFree(BitmapMemory, 0, MEM_RELEASE);
   }
 
-  if(!BitmapDeviceContext)
-  {
-    // TODO: should we recreate these under certains special circunstances
-    BitmapDeviceContext = CreateCompatibleDC(0);
-  }
+  BitmapWidth = Width;
+  BitmapHeight = Height;
 
   BitmapInfo.bmiHeader.biSize = sizeof(BitmapInfo.bmiHeader);
-  BitmapInfo.bmiHeader.biWidth = Width;
-  BitmapInfo.bmiHeader.biHeight = Height;
+  BitmapInfo.bmiHeader.biWidth = BitmapWidth;
+  BitmapInfo.bmiHeader.biHeight = -BitmapHeight; // negative is top-down, positive is bottom-up
   BitmapInfo.bmiHeader.biPlanes = 1;
   BitmapInfo.bmiHeader.biBitCount = 32;
   BitmapInfo.bmiHeader.biCompression = BI_RGB;
 
-  BitmapHandle = CreateDIBSection(BitmapDeviceContext,
-				  &BitmapInfo,
-				  DIB_RGB_COLORS,
-				  &BitmapMemory,
-				  0, 0);
+  int BitmapMemorySize = (BitmapWidth * BitmapHeight) * BytesPerPixel;
+  BitmapMemory = VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE);
 }
 
-internal void Win32UpdateWindow(HDC DeviceContext, int X, int Y, int Width, int Height)
+internal void
+Win32UpdateWindow(HDC DeviceContext, RECT *ClientRect,  int X, int Y, int Width, int Height)
 {
+  int WindowWidth = ClientRect->right - ClientRect->left;
+  int WindowHeight = ClientRect->bottom - ClientRect->top;
   StretchDIBits(DeviceContext,
-		 X, Y, Width, Height,
-		 X, Y, Width, Height,
+		 X, Y, BitmapWidth, BitmapHeight,
+		 X, Y, BitmapWidth, BitmapHeight,
 		 BitmapMemory,
 		 &BitmapInfo,
 		 DIB_RGB_COLORS,
@@ -57,6 +95,7 @@ LRESULT CALLBACK
 MainWindowCallback(HWND Window, UINT Message, WPARAM wParam, LPARAM lParam)
 {
   LRESULT result = 0;
+  
   switch(Message){
     
     case WM_ACTIVATEAPP:{
@@ -70,14 +109,18 @@ MainWindowCallback(HWND Window, UINT Message, WPARAM wParam, LPARAM lParam)
       }break;
     
     case WM_PAINT:{
+      
       PAINTSTRUCT Paint;
       HDC DeviceContext = BeginPaint(Window, &Paint);
       int X = Paint.rcPaint.left;
       int Y = Paint.rcPaint.top;
       int Width= Paint.rcPaint.right - Paint.rcPaint.left;
       int Height = Paint.rcPaint.bottom - Paint.rcPaint.top;
-      static DWORD Operation = WHITENESS;
-      Win32UpdateWindow(DeviceContext, X, Y, Width, Height);
+
+      RECT ClientRect;
+      GetClientRect(Window, &ClientRect);
+      
+      Win32UpdateWindow(DeviceContext, &ClientRect, X, Y, Width, Height);
       EndPaint(Window, &Paint);
     }break;
       
@@ -115,7 +158,7 @@ WinMain(HINSTANCE Instance,
 
   if(RegisterClass(&WindowClass))
   {
-    HWND WindowHandle = CreateWindowEx(0, //DWORD dwExStyle,
+    HWND Window = CreateWindowExA(0, //DWORD dwExStyle,
 			WindowClass.lpszClassName, //LPCWSTR lpClassName,
 			"Handmade Hero", //LPCWSTR lpWindowName,
 			WS_OVERLAPPEDWINDOW | WS_VISIBLE,//DWORD dwStyle,
@@ -128,22 +171,35 @@ WinMain(HINSTANCE Instance,
 			Instance, //HINSTANCE hInstance,
 			0);//LPVOID lpParam 
 
-    if(WindowHandle)
+    if(Window)
     {
       Running = true;
+      int Xoffset = 0;
+      int Yoffset = 0;
+      
       while (Running){
 	
 	MSG Message;
-	BOOL MessageResult = GetMessage(&Message, 0, 0, 0);
-	if(MessageResult > 0)
+	while(PeekMessage(&Message, 0, 0, 0, PM_REMOVE))
 	{
+	  if(Message.message == WM_QUIT)
+	  {
+	    Running = false;
+	  }
 	  TranslateMessage(&Message);
 	  DispatchMessage(&Message);
 	}
-	else
-	{
-	  break;
-	}
+        
+        RenderWirdGradiend(Xoffset, Yoffset);
+	HDC DeviceContext = GetDC(Window);
+	RECT ClientRect;
+	GetClientRect(Window, &ClientRect);
+	int WindowWidth = ClientRect.right - ClientRect.left;
+	int WindowHeight = ClientRect.bottom - ClientRect.top;
+	Win32UpdateWindow(DeviceContext, &ClientRect, 0, 0, WindowWidth, WindowHeight);
+	ReleaseDC(Window, DeviceContext);
+
+	++Xoffset;
       }
     }
     
