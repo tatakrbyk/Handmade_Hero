@@ -34,3 +34,10 @@ Almost all code here is authored by Casey Muratori.
 - Render a simple gradient. Each pixel has a value of form `0xXXRRGGBB`
 - use `PeekMessage` instead of `GetMessage`, because it doesn't block
 - `GetDC`, `ReleaseDC`
+
+
+### Day 5: Windows Graphics Review
+
+- `Stack Overflow debug` 
+- Use `win32_offscreen_buffer` to bundle all global variables
+- Create the back buffer just once, move it out of `WM_SIZE`
