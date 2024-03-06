@@ -6,6 +6,8 @@ Almost all code here is authored by Casey Muratori.
 - [Day2: Opening a Win32 Window](#day-2-opening-a-win32-window)
 - [Day 3: Allocating a Back Buffer](#day-3-allocating-a-back-buffer)
 - [Day 4: Animating the Back Buffer](#day-4-animating-the-back-buffer)
+- [Day 5: Windows Graphics Review](#day-5-windows-graphics-review)
+- [Day 6: Gamepad and Keyboard Input](#day-6-gamepad-and-keyboard-input)
 
 
 ### Day 2: Opening a Win32 Window
@@ -41,3 +43,11 @@ Almost all code here is authored by Casey Muratori.
 - `Stack Overflow debug` 
 - Use `win32_offscreen_buffer` to bundle all global variables
 - Create the back buffer just once, move it out of `WM_SIZE`
+
+### Day 6: Gamepad and Keyboard Input
+
+- `XInput`, `XInputGetState`, `XInputSetState`, `XUSER_MAX_COUNT`
+- Loading windows functions ourselves
+- `LoadLibrary`, `GetProcAddress`
+- `WM_SYSKEYUP`, `WM_SYSKEYDOWN`, `WM_KEYUP`, `WM_KEYDOWN`
+- Get IsDown and WasDown status from LParam
