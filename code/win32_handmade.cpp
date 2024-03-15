@@ -2,6 +2,8 @@
 #include <windows.h>
 #include <stdint.h>
 #include <Xinput.h>
+#include <dsound.h>
+#include <stdio.h>
 
 #define internal static
 #define local_persist static;
@@ -11,6 +13,8 @@ typedef uint8_t uint8;
 typedef uint16_t uint16;
 typedef uint32_t uint32;
 typedef uint64_t uint64;
+
+typedef int32 bool32;
 
 typedef int8_t int8;
 typedef int16_t int16;
@@ -40,16 +44,16 @@ global_variable win32_offscreen_buffer GlobalBackBuffer;
 typedef X_INPUT_GET_STATE(x_input_get_state);
 X_INPUT_GET_STATE(XInputGetStateStub)
 {
-	return 0;
+	return ERROR_DEVICE_NOT_CONNECTED;
 }
 global_variable x_input_get_state *XInputGetState_ = XInputGetStateStub;
 
-//NOTE: XINputSetState
+//NOTE: XInputSetState
 #define X_INPUT_SET_STATE(name) DWORD WINAPI name( DWORD dwUserIndex, XINPUT_VIBRATION* pVibration )
 typedef X_INPUT_SET_STATE(x_input_set_state);
 X_INPUT_SET_STATE(XInputSetStateStub)
 {
-	return 0;
+	return ERROR_DEVICE_NOT_CONNECTED;
 }
 global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 
@@ -59,14 +63,108 @@ global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define XInputGetState XInputGetState_
 #define XInputSetState XInputSetState_
 
+#define DIRECT_SOUND_CREATE(name) HRESULT name(LPCGUID(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
+typedef DIRECT_SOUND_CREATE(direct_sound_create);
+
 internal void Win32LoadXInput()
 {
-  HMODULE XInputLibrary = LoadLibraryA("xinput1_3.dll");
+  HMODULE XInputLibrary = LoadLibraryA("xinput1_4.dll");
+  if(!XInputLibrary){
+    HMODULE XInputLibrary = LoadLibraryA("xinput1_3.dll");
+  }
   if(XInputLibrary)
     {
       XInputGetState = (x_input_get_state*)GetProcAddress(XInputLibrary,"XInputGetState");
       XInputSetState = (x_input_set_state*)GetProcAddress(XInputLibrary, "XInputSetState");
     }
+}
+
+internal void
+Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferSize)
+{
+  HMODULE DSoundLibrary = LoadLibraryA("dsound.dll");
+
+  // The primary buffer only be used internally by direct sound
+  // we'll only be writing audio to the secondary buffer.
+
+  if(DSoundLibrary)
+  {
+    direct_sound_create *DirectSoundCreate_ = (direct_sound_create*) GerProcAddress(DSoundLibrary, "DirectSoundCreate");
+    LPDIRECTSOUND DSound;
+ 
+    // TODO: Double-check that this works on XP - DirectSound8 or 7???????
+    if(DirectSoundCreate_ && SUCCEEDED(DirectSoundCreate_(0, &DSound, 0)))
+    {
+      WAVEFORMATEX WaveFormat = {}; // zero init
+
+      WaveFormat.WFormatTag = WAVE_FORMAT_PCM;
+      WaveFormat.nChannels = 2;
+      WaveFormat.nSamplesPerSec = SamplesPerSecond;
+      WaveFormat.wBitsPerSample = 16;
+      WaveFormat.nBlockAlign = (WaveFormat.nChannels * WaveFormat.wBitPerSample) / 8;
+      WaveFormat.nAvgBytesPerSec = WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
+      WaveFormat.cbSize = 0;
+
+      // NOTE: Get a DirectSound object! - cooperative
+      if(SUCCEEDED(DSound->SetCooperativeLevel(Window, DSSCL_PRIORITY)))
+      {
+	DSBUFFERDESC BufferDescriptor = {};
+
+	BufferDescriptor.dwSize = sizeof(BufferDescriptor);
+	BufferDescriptor.dwFlags = DSBCAPS_PRIMARYBUFFER;
+
+	// NOTE: Create a primary buffer
+	// TODO: DSBCAPS_GLOBALFOCUS?
+	LPDIRECTSOUNDBUFFER PrimaryBuffer;
+	if(SUCCEEDED(DSound->CreateSoundBuffer(&BufferDescriptor, &PrimaryBuffer, 0)))
+	{
+	  HRESULT Error = PrimaryBuffer->SetFormat(&WaveFormat);
+	  if(SUCCEEDED(Error))
+	  {
+	    // Note: We have finally set the format
+	    OutputDebugStringA("Primary buffer format was set. \n");
+	  }
+	  else
+	  {
+	    
+	    // TODO: Diagnostic
+	  }
+	}
+	else
+	{
+	   // TODO: Diagnostic
+	}
+	  
+      }
+      else
+      {
+	 // TODO: Diagnostic
+      }
+
+
+      // Note: Create a secondary buffer
+      // TODO: DSBCAPS_GETCURRENTPOSITION2
+      DSBUFFERDESC BufferDescriptor = {};
+      BufferDescriptor.dwSize = sizeof(BufferDescriptor);
+      BufferDescriptor.dwFlags = 0;
+      BufferDescriptor.dwBufferBytes = BufferSize;
+      BufferDescriptor.lpwfxFormat = &WaveFormat;
+
+      LPDIRECTSOUNDBUFFER SecondaryBuffer;
+      HRESULT Error = DSound->CreateSoundBuffer(&BufferDescriptor, &SecondaryBuffer, 0);
+
+      if(SUCCEEDED(Error))
+      {
+	// NOTE: Start it playing!
+	OutputDebugStringA("Secondary buffer created successfuly. \n");
+      }
+      else
+      {
+	// TODO: Diagnostic
+      }
+
+    }
+  }
 }
 internal win32_window_dimension
 Win32GetWindowDimension(HWND Window)
@@ -79,6 +177,7 @@ Win32GetWindowDimension(HWND Window)
 
   return Result;
 }
+
 internal void
 RenderWeirdGradiend(const win32_offscreen_buffer &Buffer, int Xoffset, int Yoffset)
 {
@@ -155,7 +254,7 @@ LRESULT CALLBACK MainWindowCallback(HWND Window,
 	WPARAM WParam,
 	LPARAM LParam)
 {
-	LRESULT Result = 0;
+	Lresult Result = 0;
 
 	switch (Message)
 	{
@@ -175,68 +274,7 @@ LRESULT CALLBACK MainWindowCallback(HWND Window,
 			OutputDebugStringA("WM_ACTIVATEAAPP\n");
 		} break;
 
-		case WM_SYSKEYDOWN:
-		case WM_SYSKEYUP:
-		case WM_KEYDOWN:
-		case WM_KEYUP:
-		{
-			uint32 VKCode = WParam;
-			bool WasDown = (LParam & (1 << 30)) != 0;
-			bool IsDown = (LParam & (1 << 31)) == 0;
-
-			if (WasDown != IsDown)
-			{
-				if (VKCode == 'W')
-				{
-				}
-				else if (VKCode == 'A')
-				{
-				}
-				else if (VKCode == 'S')
-				{
-				}
-				else if (VKCode == 'D')
-				{
-				}
-				else if (VKCode == 'Q')
-				{
-				}
-				else if (VKCode == 'E')
-				{
-				}
-				else if (VKCode == VK_UP)
-				{
-				}
-				else if (VKCode == VK_LEFT)
-				{
-				}
-				else if (VKCode == VK_DOWN)
-				{
-				}
-				else if (VKCode == VK_RIGHT)
-				{
-				}
-				else if (VKCode == VK_ESCAPE)
-				{
-				}
-				else if (VKCode == VK_SPACE)
-				{
-					OutputDebugStringA("ESCAPE - ");
-					OutputDebugStringA(WasDown ? "Was DOWN - " : "Was UP   - ");
-					OutputDebugStringA(IsDown ? "Is  DOWN\n" : "Is UP\n");
-				}
-				//else
-				//{
-				//	Result = DefWindowProc(Window, Message, WParam, LParam);
-				//}
-			}
-			//else
-			//{
-			//	Result = DefWindowProc(Window, Message, WParam, LParam);
-			//}
-		} break;
-
-		case WM_DESTROY:
+        	case WM_DESTROY:
 		{
 			//TODO: handle this with a error - recreate window?
 			GlobalRunning = false;
@@ -248,10 +286,77 @@ LRESULT CALLBACK MainWindowCallback(HWND Window,
 			HDC DeviceContext = BeginPaint(Window, &Paint);
 			win32_window_dimension Dimension = Win32GetWindowDimension(Window);
 			Win32DisplayBufferInWindow(GlobalBackBuffer, DeviceContext, 
-				Dimension.Width, Dimension.Height);
+	        	Dimension.Width, Dimension.Height);
 			EndPaint(Window, &Paint);
 
 		} break;
+
+		case WM_SYSKEYDOWN:
+		case WM_SYSKEYUP:
+		case WM_KEYDOWN:
+		case WM_KEYUP:
+		{
+		  uint32 VKCode = WParam;
+		  bool WasDown = (LParam & (1 << 30)) != 0);
+	       	  bool IsDown = (LParam & (1 << 31)) == 0;
+
+	          if (WasDown != IsDown)
+	          {
+		    if (VKCode == 'W')
+	       	    {
+		    }
+		    else if (VKCode == 'A')
+		    {
+		    }
+		    else if (VKCode == 'S')
+		    {
+		    }
+		    else if (VKCode == 'D')
+		    {
+		    }
+		    else if (VKCode == 'Q')
+		    {
+		    }
+		    else if (VKCode == 'E')
+		    {
+		    }
+		    else if (VKCode == VK_UP)
+		    {
+		    }
+		    else if (VKCode == VK_LEFT)
+		    {
+		    }
+		    else if (VKCode == VK_DOWN)
+		    {
+		    }
+		    else if (VKCode == VK_RIGHT)
+		    {
+		    }
+		    else if (VKCode == VK_ESCAPE)
+		    {
+		      OutputDebugStringA("ESCAPE: ");
+		      if(IsDown){
+			OutputDebugStringA("IsDown");
+		      }
+		      if(WasDown){
+			OutputDebugStringA("WasDown");
+		      }
+		      OutputDebugStringA("\n");
+		    }
+		    else if (VKCode == VK_SPACE)
+		    {
+		    }
+		  }
+
+		 
+		  bool32 AltKeyWasDown = ((LParam & (1 << 29)) != 0); 
+		  if((VKCode == VK_F4) && AltKeyWasDown)
+		  {
+		    GlobalRunning = false;
+		  }    
+		} break;
+
+      
 
 		default:
 		{
@@ -299,11 +404,14 @@ WinMain(HINSTANCE Instance,
 
     if(Window)
     {
-      HDC DeviceContext = GetDC(Window);
+      HDC DeviceContext = GetDC(Window);    
       
-      GlobalRunning = true;
       int Xoffset = 0;
       int Yoffset = 0;
+
+      Win32InitDSound(Window, 48000, 48000 * sizeof(16) * 2);
+      
+      GlobalRunning = true;
       
       while (GlobalRunning){
 	

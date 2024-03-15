@@ -8,7 +8,7 @@ Almost all code here is authored by Casey Muratori.
 - [Day 4: Animating the Back Buffer](#day-4-animating-the-back-buffer)
 - [Day 5: Windows Graphics Review](#day-5-windows-graphics-review)
 - [Day 6: Gamepad and Keyboard Input](#day-6-gamepad-and-keyboard-input)
-
+- [Day 7: Initializing DirectSound](#day-7-initializing-directsound)
 
 ### Day 2: Opening a Win32 Window
 
@@ -51,3 +51,8 @@ Almost all code here is authored by Casey Muratori.
 - `LoadLibrary`, `GetProcAddress`
 - `WM_SYSKEYUP`, `WM_SYSKEYDOWN`, `WM_KEYUP`, `WM_KEYDOWN`
 - Get IsDown and WasDown status from LParam
+
+
+### Day 7: Initializing DirectSound
+
+- `DirectSoundCreate`, `SetCooperativeLevel`, `CreateSoundBuffer`, `SetFormat`
