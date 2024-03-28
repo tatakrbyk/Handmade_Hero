@@ -9,6 +9,7 @@ Almost all code here is authored by Casey Muratori.
 - [Day 5: Windows Graphics Review](#day-5-windows-graphics-review)
 - [Day 6: Gamepad and Keyboard Input](#day-6-gamepad-and-keyboard-input)
 - [Day 7: Initializing DirectSound](#day-7-initializing-directsound)
+- [Day 8: Writing a Square Wave to DirectSound](#day-8-writing-a-square-wave-to-directsound)
 
 ### Day 2: Opening a Win32 Window
 
@@ -56,3 +57,8 @@ Almost all code here is authored by Casey Muratori.
 ### Day 7: Initializing DirectSound
 
 - `DirectSoundCreate`, `SetCooperativeLevel`, `CreateSoundBuffer`, `SetFormat`
+
+
+### Day 8: Writing a Square Wave to DirectSound
+
+- `Lock`, `Unlock`, `GetCurrentPosition`, `Play`
