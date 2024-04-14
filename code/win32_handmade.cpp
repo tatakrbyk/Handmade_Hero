@@ -1,25 +1,33 @@
   
-#Include <windows.h>
+#include <Windows.h>
 #include <stdint.h>
 #include <xinput.h>
 #include <dsound.h>
 #include <stdio.h>
 
+// TODO(taha): ReWrire sine func
+#include <math.h>
+
 #define internal static
 #define local_persist static;
 #define global_variable static;
+
+#define Pi32 3.14159265359f
 
 typedef uint8_t uint8;
 typedef uint16_t uint16;
 typedef uint32_t uint32;
 typedef uint64_t uint64;
 
-typedef int32 bool32;
-
 typedef int8_t int8;
 typedef int16_t int16;
 typedef int32_t int32;
 typedef int64_t int64;
+
+typedef int32 bool32;
+
+typedef float real32;
+typedef double real64;
 
 struct win32_offscreen_buffer
 {
@@ -36,6 +44,7 @@ struct win32_window_dimension
   int Height;
 };
 
+  
 global_variable bool GlobalRunning;
 global_variable win32_offscreen_buffer GlobalBackBuffer;
 global_variable LPDIRECTSOUNDBUFFER GlobalSecondaryBuffer;
@@ -45,39 +54,52 @@ global_variable LPDIRECTSOUNDBUFFER GlobalSecondaryBuffer;
 typedef X_INPUT_GET_STATE(x_input_get_state);
 X_INPUT_GET_STATE(XInputGetStateStub)
 {
-	return ERROR_DEVICE_NOT_CONNECTED;
+  return (ERROR_DEVICE_NOT_CONNECTED);
 }
 global_variable x_input_get_state *XInputGetState_ = XInputGetStateStub;
+#define XInputGetState XInputGetState_
 
 //NOTE: XInputSetState
 #define X_INPUT_SET_STATE(name) DWORD WINAPI name( DWORD dwUserIndex, XINPUT_VIBRATION* pVibration )
 typedef X_INPUT_SET_STATE(x_input_set_state);
 X_INPUT_SET_STATE(XInputSetStateStub)
 {
-	return ERROR_DEVICE_NOT_CONNECTED;
+  return (ERROR_DEVICE_NOT_CONNECTED);
 }
 global_variable x_input_set_state *XInputSetState_ = XInputSetStateStub;
-
-
-// this works because XInput was included before
-
-#define XInputGetState XInputGetState_
 #define XInputSetState XInputSetState_
 
-#define DIRECT_SOUND_CREATE(name) HRESULT name(LPCGUID(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
+
+#define DIRECT_SOUND_CREATE(name) HRESULT WINAPI name(LPGUID lpGuid, LPDIRECTSOUND* ppDS, LPUNKNOWN  pUnkOuter )
 typedef DIRECT_SOUND_CREATE(direct_sound_create);
 
-internal void Win32LoadXInput()
+internal void
+Win32LoadXInput(void)
 {
   HMODULE XInputLibrary = LoadLibraryA("xinput1_4.dll");
+
+  if(!XInputLibrary){
+    HMODULE XInputLibrary = LoadLibraryA("xinput9_1_0.dll");
+  }
+  
   if(!XInputLibrary){
     HMODULE XInputLibrary = LoadLibraryA("xinput1_3.dll");
   }
+
   if(XInputLibrary)
-    {
-      XInputGetState = (x_input_get_state*)GetProcAddress(XInputLibrary,"XInputGetState");
-      XInputSetState = (x_input_set_state*)GetProcAddress(XInputLibrary, "XInputSetState");
-    }
+  {
+    XInputGetState = (x_input_get_state*)GetProcAddress(XInputLibrary,"XInputGetState");
+    if(!XInputGetState) {XInputGetState = XInputGetStateStub;}
+      
+    XInputSetState = (x_input_set_state*)GetProcAddress(XInputLibrary, "XInputSetState");
+    if(!XInputSetState) {XInputSetState = XInputSetStateStub;}
+
+    // TODO: Diagnostic
+  }
+  else
+  {
+    // TODO: Diagnostic
+  }
 }
 
 internal void
@@ -90,34 +112,35 @@ Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferSize)
 
   if(DSoundLibrary)
   {
-    direct_sound_create *DirectSoundCreate_ = (direct_sound_create*) GerProcAddress(DSoundLibrary, "DirectSoundCreate");
-    LPDIRECTSOUND DSound;
+    direct_sound_create *DirectSoundCreate_ = (direct_sound_create*) GetProcAddress(DSoundLibrary, "DirectSoundCreate");
+    
+    LPDIRECTSOUND DirectSound;
  
     // TODO: Double-check that this works on XP - DirectSound8 or 7???????
-    if(DirectSoundCreate_ && SUCCEEDED(DirectSoundCreate_(0, &DSound, 0)))
+    if(DirectSoundCreate_ && SUCCEEDED(DirectSoundCreate_(0, &DirectSound, 0)))
     {
       WAVEFORMATEX WaveFormat = {}; // zero init
 
-      WaveFormat.WFormatTag = WAVE_FORMAT_PCM;
+      WaveFormat.wFormatTag = WAVE_FORMAT_PCM;
       WaveFormat.nChannels = 2;
       WaveFormat.nSamplesPerSec = SamplesPerSecond;
-      WaveFormat.wBitsPerSample = 16;
-      WaveFormat.nBlockAlign = (WaveFormat.nChannels * WaveFormat.wBitPerSample) / 8;
       WaveFormat.nAvgBytesPerSec = WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
+      WaveFormat.nBlockAlign = (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
+      WaveFormat.wBitsPerSample = 16;
       WaveFormat.cbSize = 0;
 
       // NOTE: Get a DirectSound object! - cooperative
-      if(SUCCEEDED(DSound->SetCooperativeLevel(Window, DSSCL_PRIORITY)))
+      if(SUCCEEDED(DirectSound->SetCooperativeLevel(Window, DSSCL_PRIORITY)))
       {
-	DSBUFFERDESC BufferDescriptor = {};
+	DSBUFFERDESC BufferDescription = {};
 
-	BufferDescriptor.dwSize = sizeof(BufferDescriptor);
-	BufferDescriptor.dwFlags = DSBCAPS_PRIMARYBUFFER;
+	BufferDescription.dwSize = sizeof(BufferDescription);
+	BufferDescription.dwFlags = DSBCAPS_PRIMARYBUFFER;
 
 	// NOTE: Create a primary buffer
 	// TODO: DSBCAPS_GLOBALFOCUS?
 	LPDIRECTSOUNDBUFFER PrimaryBuffer;
-	if(SUCCEEDED(DSound->CreateSoundBuffer(&BufferDescriptor, &PrimaryBuffer, 0)))
+	if(SUCCEEDED(DirectSound->CreateSoundBuffer(&BufferDescription, &PrimaryBuffer, 0)))
 	{
 	  HRESULT Error = PrimaryBuffer->SetFormat(&WaveFormat);
 	  if(SUCCEEDED(Error))
@@ -142,32 +165,30 @@ Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferSize)
 	 // TODO: Diagnostic
       }
 
-
       // Note: Create a secondary buffer
       // TODO: DSBCAPS_GETCURRENTPOSITION2
-      DSBUFFERDESC BufferDescriptor = {};
-      BufferDescriptor.dwSize = sizeof(BufferDescriptor);
-      BufferDescriptor.dwFlags = 0;
-      BufferDescriptor.dwBufferBytes = BufferSize;
-      BufferDescriptor.lpwfxFormat = &WaveFormat;
+      DSBUFFERDESC BufferDescription = {};
+      BufferDescription.dwSize = sizeof(BufferDescription);
+      BufferDescription.dwFlags = 0;
+      BufferDescription.dwBufferBytes = BufferSize;
+      BufferDescription.lpwfxFormat = &WaveFormat;
 
-      HRESULT Error = DSound->CreateSoundBuffer(&BufferDescriptor, &GlobalSecondaryBuffer, 0);
+      HRESULT Error = DirectSound->CreateSoundBuffer(&BufferDescription, &GlobalSecondaryBuffer, 0);
 
       if(SUCCEEDED(Error))
       {
 	// NOTE: Start it playing!
 	OutputDebugStringA("Secondary buffer created successfuly. \n");
       }
-      else
-      {
+    }
+    else
+    {
 	// TODO: Diagnostic
-      }
-
     }
   }
 }
-internal win32_window_dimension
-Win32GetWindowDimension(HWND Window)
+
+win32_window_dimension Win32GetWindowDimension(HWND Window)
 {
   win32_window_dimension Result;
   RECT ClientRect;
@@ -175,73 +196,67 @@ Win32GetWindowDimension(HWND Window)
   Result.Width = ClientRect.right - ClientRect.left;
   Result.Height = ClientRect.bottom - ClientRect.top;
 
-  return Result;
+  return (Result);
 }
 
 internal void
-RenderWeirdGradiend(const win32_offscreen_buffer &Buffer, int Xoffset, int Yoffset)
+RenderWeirdGradient(win32_offscreen_buffer *Buffer, int BlueOffset, int GreenOffset)
 {
-  uint8 *Row = (uint8 *)Buffer.Memory;
+  uint8 *Row = (uint8 *)Buffer->Memory;
 
-  for(int y = 0; y < Buffer.Height; ++y)
+  for(int y = 0; y < Buffer->Height; ++y)
   {
     uint32 *Pixel = (uint32*)Row;
 
-    for(int x = 0; x < Buffer.Width; ++x)
+    for(int x = 0; x < Buffer->Width; ++x)
     {
-      uint8 Green = (y + Yoffset);
-      uint8 Blue = (x + Xoffset);
+      uint8 Green = (y + GreenOffset);
+      uint8 Blue = (x + BlueOffset);
 
-      /*
-	Memory:   BB GG RR XX
-	Register: XX RR GG BB
-	Pixel (32-bits)
-      */
-
-      *Pixel++ = (Green << 8) | Blue;
+      *Pixel++ = ((Green << 8) | Blue);
     }
-    Row += Buffer.Pitch;
+    Row += Buffer->Pitch;
   }
 }
 
 internal void
-Win32ResizeDIBSection(win32_offscreen_buffer &Buffer ,int Width, int Height)
+Win32ResizeDIDSection(win32_offscreen_buffer *Buffer ,int Width, int Height)
 {
   // TODO: bulletproof this;
   // maybe dont free first, free after then free first it that fails
 
-  if(Buffer.Memory)
+  if(Buffer->Memory)
   {
-    VirtualFree(Buffer.Memory, 0, MEM_RELEASE);
+    VirtualFree(Buffer->Memory, 0, MEM_RELEASE);
   }
 
-  Buffer.Width = Width;
-  Buffer.Height = Height;
+  Buffer->Width = Width;
+  Buffer->Height = Height;
   int BytesPerPixel = 4;
 
-  Buffer.Info.bmiHeader.biSize = sizeof(Buffer.Info.bmiHeader);
-  Buffer.Info.bmiHeader.biWidth = Buffer.Width;
-  Buffer.Info.bmiHeader.biHeight = -Buffer.Height; // negative is top-down, positive is bottom-up
-  Buffer.Info.bmiHeader.biPlanes = 1;
-  Buffer.Info.bmiHeader.biBitCount = 32;
-  Buffer.Info.bmiHeader.biCompression = BI_RGB;
+  Buffer->Info.bmiHeader.biSize = sizeof(Buffer->Info.bmiHeader);
+  Buffer->Info.bmiHeader.biWidth = Buffer->Width;
+  Buffer->Info.bmiHeader.biHeight = -Buffer->Height; // negative is top-down, positive is bottom-up
+  Buffer->Info.bmiHeader.biPlanes = 1;
+  Buffer->Info.bmiHeader.biBitCount = 32;
+  Buffer->Info.bmiHeader.biCompression = BI_RGB;
 
-  int BitmapMemorySize = (Buffer.Width * Buffer.Height) * BytesPerPixel;
-  Buffer.Memory = VirtualAlloc(0, BitmapMemorySize, MEM_COMMIT, PAGE_READWRITE); // ?  Mem reserve
+  int BitmapMemorySize = (Buffer->Width * Buffer->Height) * BytesPerPixel;
+  Buffer->Memory = VirtualAlloc(0, BitmapMemorySize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE); // ?  Mem reserve
 
-  Buffer.Pitch = Width * BytesPerPixel;
+  Buffer->Pitch = Width * BytesPerPixel;
 }
 
 internal void
-Win32DisplayBufferInWindow( const win32_offscreen_buffer &Buffer,HDC DeviceContext,
+Win32DisplayBufferInWindow(win32_offscreen_buffer *Buffer,HDC DeviceContext,
 			    int WindowWidth, int WindowHeight)
 {
   // Place in the window
   StretchDIBits(DeviceContext,
 		 0, 0, WindowWidth, WindowHeight,
-		 0, 0, Buffer.Width, Buffer.Height,
-		 Buffer.Memory,
-		 &Buffer.Info,
+		 0, 0, Buffer->Width, Buffer->Height,
+		 Buffer->Memory,
+		 &Buffer->Info,
 		 DIB_RGB_COLORS,
 		 SRCCOPY);
 }
@@ -249,12 +264,13 @@ Win32DisplayBufferInWindow( const win32_offscreen_buffer &Buffer,HDC DeviceConte
 
 // DIB = Device Independent Bitmap
 
-LRESULT CALLBACK MainWindowCallback(HWND Window,
-	UINT   Message,
-	WPARAM WParam,
-	LPARAM LParam)
+internal LRESULT CALLBACK
+Win32MainWindowCallback(HWND Window,
+			UINT   Message,
+			WPARAM WParam,
+			LPARAM LParam)
 {
-	Lresult Result = 0;
+	LRESULT Result = 0;
 
 	switch (Message)
 	{
@@ -285,8 +301,8 @@ LRESULT CALLBACK MainWindowCallback(HWND Window,
 			PAINTSTRUCT Paint;
 			HDC DeviceContext = BeginPaint(Window, &Paint);
 			win32_window_dimension Dimension = Win32GetWindowDimension(Window);
-			Win32DisplayBufferInWindow(GlobalBackBuffer, DeviceContext, 
-	        	Dimension.Width, Dimension.Height);
+			Win32DisplayBufferInWindow(&GlobalBackBuffer, DeviceContext, 
+						   Dimension.Width, Dimension.Height);
 			EndPaint(Window, &Paint);
 
 		} break;
@@ -297,8 +313,8 @@ LRESULT CALLBACK MainWindowCallback(HWND Window,
 		case WM_KEYUP:
 		{
 		  uint32 VKCode = WParam;
-		  bool WasDown = (LParam & (1 << 30)) != 0);
-	       	  bool IsDown = (LParam & (1 << 31)) == 0;
+		  bool32 WasDown = (LParam & (1 << 30) != 0);
+	       	  bool32 IsDown = (LParam & (1 << 31)) == 0;
 
 	          if (WasDown != IsDown)
 	          {
@@ -349,24 +365,91 @@ LRESULT CALLBACK MainWindowCallback(HWND Window,
 		  }
 
 		 
-		  bool32 AltKeyWasDown = ((LParam & (1 << 29)) != 0); 
+		  bool32 AltKeyWasDown = (LParam & (1 << 29)); 
 		  if((VKCode == VK_F4) && AltKeyWasDown)
 		  {
 		    GlobalRunning = false;
 		  }    
 		} break;
 
-      
-
 		default:
 		{
 			//		OutputDebugStringA("default\n");
-			Result = DefWindowProc(Window, Message, WParam, LParam);
+			Result = DefWindowProcA(Window, Message, WParam, LParam);
 		} break;
 	}
 
 	return Result;
-}		    
+}
+
+
+struct win32_sound_output
+{
+  int SamplesPerSecond;
+  int ToneHz;
+  uint16 ToneVolume;
+  uint32 RunningSampleIndex;
+  int WaveCounter;
+  int WavePeriod;
+  int BytesPerSample;
+  int SecondaryBufferSize;
+  real32 tSine;
+  int LatencySampleCount;
+};
+  
+internal void
+Win32FillSoundBuffer(win32_sound_output *SoundOutput, DWORD ByteToLock, DWORD BytesToWrite)
+{
+  // TODO: Switch to a sine wave
+  VOID *Region1;
+  DWORD Region1Size;
+
+  VOID *Region2;
+  DWORD Region2Size;
+
+  if (SUCCEEDED(GlobalSecondaryBuffer->Lock(ByteToLock, BytesToWrite,
+		&Region1, &Region1Size,
+		&Region2, &Region2Size,
+		0)))
+    {
+      // TODO : assert that Region1Size/Region2Size is valid
+
+      // TODO : Collapse the two loops
+
+      DWORD Region1SampleCount = Region1Size / SoundOutput->BytesPerSample;
+      int16 *SampleOut = (int16 *) Region1;
+      
+      for(DWORD SampleIndex = 0; SampleIndex < Region1SampleCount; ++SampleIndex)
+	{
+	  // TODO : Draw this out for people
+	  
+	  real32 SineValue = sinf(SoundOutput->tSine);
+	  int16 SampleValue = (int16)(SineValue * SoundOutput->ToneVolume);
+	  *SampleOut++ = SampleValue;
+	  *SampleOut++ = SampleValue;
+
+	  SoundOutput->tSine += 2.0f * Pi32 * 1.0f /(real32)SoundOutput->WavePeriod;
+	  ++SoundOutput->RunningSampleIndex;
+	}
+
+      DWORD Region2SampleCount = Region2Size / SoundOutput->BytesPerSample;
+      SampleOut = (int16 *) Region2;
+
+      for(DWORD SampleIndex = 0; SampleIndex < Region2SampleCount; ++SampleIndex)
+	{
+	  real32 SineValue = sinf(SoundOutput->tSine);
+	  int16 SampleValue = (int16)(SineValue * SoundOutput->ToneVolume);
+	  *SampleOut++ = SampleValue;
+	  *SampleOut++ = SampleValue;
+
+	  SoundOutput->tSine += 2.0f * Pi32 * 1.0f /(real32)SoundOutput->WavePeriod;
+	  ++SoundOutput->RunningSampleIndex;
+	}
+
+      GlobalSecondaryBuffer->Unlock(Region1, Region1Size, Region2, Region2Size);
+    }
+}
+
 	
 int CALLBACK
 WinMain(HINSTANCE Instance,
@@ -375,12 +458,12 @@ WinMain(HINSTANCE Instance,
 	int ShowCode)
 {
   Win32LoadXInput();
-  WNDCLASS WindowClass = {}; // zero initialize
+  WNDCLASSA WindowClass = {}; // zero initialize
 
-  Win32ResizeDIBSection(GlobalBackBuffer, 1280, 720);
+  Win32ResizeDIDSection(&GlobalBackBuffer, 1280, 720);
   
-  WindowClass.style = CS_HREDRAW | CS_VREDRAW; // always redraw when resize
-  WindowClass.lpfnWndProc = MainWindowCallback;
+  WindowClass.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC; // always redraw when resize
+  WindowClass.lpfnWndProc = Win32MainWindowCallback;
   WindowClass.hInstance = Instance;
   WindowClass.hCursor = LoadCursor(0, IDC_ARROW);
   //WindowClass.hIcon; // Todo: add Icon
@@ -405,23 +488,25 @@ WinMain(HINSTANCE Instance,
     if(Window)
     {
       HDC DeviceContext = GetDC(Window);    
-      
-      int Xoffset = 0;
-      int Yoffset = 0;
+
+      // NOTE: Graphics text 
+      int XOffset = 0;
+      int YOffset = 0;
+
+      win32_sound_output SoundOutput = {};
 
       // Note: Sound Test
-      int SamplesPerSecond = 48000;
-      int ToneHZ = 256;
-      uint32 RunningSampleIndex = 0;
-      int SquareWaveCounter = 0;
-      int SquareWavePeriod = SamplesPerSecond / ToneHz;
-      int HalfSquareWavePeriod = SquareWavePeriod / 2;
-      int BytesPerSample = sizeof(int16) * 2;
-      int SecondaryBufferSize = SamplesPerSecond * BytesPerSample;
-      uint16 ToneVolume = 100;
-
+      SoundOutput.SamplesPerSecond = 48000;
+      SoundOutput.ToneHz = 256;
+      SoundOutput.ToneVolume = 3000;
+      SoundOutput.WavePeriod = SoundOutput.SamplesPerSecond / SoundOutput.ToneHz;
+      SoundOutput.BytesPerSample = sizeof(int16) * 2;
+      SoundOutput.SecondaryBufferSize = SoundOutput.SamplesPerSecond * SoundOutput.BytesPerSample;
+      SoundOutput.LatencySampleCount = SoundOutput.SamplesPerSecond/15 ;
       
-      Win32InitDSound(Window, SamplesPerSecond , SecondaryBufferSize);
+      Win32InitDSound(Window, SoundOutput.SamplesPerSecond , SoundOutput.SecondaryBufferSize);
+      Win32FillSoundBuffer(&SoundOutput, 0, SoundOutput.SecondaryBufferSize * SoundOutput.BytesPerSample);
+      
       GlobalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
       
       GlobalRunning = true;
@@ -448,27 +533,35 @@ WinMain(HINSTANCE Instance,
 
 	    XINPUT_GAMEPAD *Pad = &ControllerState.Gamepad;
 
-	    bool Up = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_UP);
-            bool Down = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
-            bool Left = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT);
-            bool Right = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT);
-            bool Start = (Pad->wButtons & XINPUT_GAMEPAD_START);
-            bool Back = (Pad->wButtons & XINPUT_GAMEPAD_BACK);
-            bool LeftShoulder = (Pad->wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER);
-            bool RightShoulder = (Pad->wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER);
-            bool AButton = (Pad->wButtons & XINPUT_GAMEPAD_A);
-            bool BButton = (Pad->wButtons & XINPUT_GAMEPAD_B);
-            bool XButton = (Pad->wButtons & XINPUT_GAMEPAD_X);
-            bool YButton = (Pad->wButtons & XINPUT_GAMEPAD_Y);
+	    bool32 Up = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_UP);
+            bool32 Down = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
+            bool32 Left = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT);
+            bool32 Right = (Pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT);
+            bool32 Start = (Pad->wButtons & XINPUT_GAMEPAD_START);
+            bool32 Back = (Pad->wButtons & XINPUT_GAMEPAD_BACK);
+            bool32 LeftShoulder = (Pad->wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER);
+            bool32 RightShoulder = (Pad->wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER);
+            bool32 AButton = (Pad->wButtons & XINPUT_GAMEPAD_A);
+            bool32 BButton = (Pad->wButtons & XINPUT_GAMEPAD_B);
+            bool32 XButton = (Pad->wButtons & XINPUT_GAMEPAD_X);
+            bool32 YButton = (Pad->wButtons & XINPUT_GAMEPAD_Y);
 
 	    int16 StickX = Pad->sThumbLX;
 	    int16 StickY = Pad->sThumbLY;
 
-	    int16 StickRX = Pad->sThumbRX;
+	    // TODO: We will do deadzone handling later using
+	    // XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE 7849
+            // XINPUT_GAMEPAD_RIGHT_THUMB_DEADZONE 8689
+	    XOffset += StickX / 4096;
+	    YOffset += StickY / 4096;
 
+	    SoundOutput.ToneHz = 512 + (int)(256.0f * ((real32)StickY / 30000.0f));
+	    SoundOutput.WavePeriod = SoundOutput.SamplesPerSecond / SoundOutput.ToneHz;
 	    if(AButton)
-	      Yoffset +=2;
-	    
+	   {
+	      SoundOutput.ToneHz = 512;
+	      SoundOutput.WavePeriod = SoundOutput.SamplesPerSecond / SoundOutput.ToneHz;
+	   }
 	  }
 	  else
 	  {
@@ -476,7 +569,7 @@ WinMain(HINSTANCE Instance,
 	  }
 	}
 	
-        RenderWeirdGradiend(GlobalBackBuffer, Xoffset, Yoffset);
+        RenderWeirdGradient(&GlobalBackBuffer, XOffset, YOffset);
 
 	// Note: Direct Sound Output Text
 	DWORD PlayCursor;
@@ -484,57 +577,31 @@ WinMain(HINSTANCE Instance,
 
 	if(SUCCEEDED(GlobalSecondaryBuffer->GetCurrentPosition(&PlayCursor, &WriteCursor)))
 	{
-	  DWORD ByteToLock = (RunningSampleIndex * BytesPerSample) % SecondaryBufferSize;
+	  DWORD ByteToLock = ((SoundOutput.RunningSampleIndex * SoundOutput.BytesPerSample) %
+			      SoundOutput.SecondaryBufferSize);
+
+	  DWORD TargetCursor = ((PlayCursor +
+				 (SoundOutput.LatencySampleCount * SoundOutput.BytesPerSample))%
+				SoundOutput.SecondaryBufferSize);
 	  DWORD BytesToWrite;
 
-	  if(ByteToLock == PlayCursor)
+	  
+	  if (ByteToLock > TargetCursor)
 	  {
-	    BytesToWrite = SecondaryBufferSize;
-	  }
-	  else if (ByteToLock > PlayCursor)
-	  {
-	    BytesToWrite = SecondaryBufferSize - ByteToLock;
-	    BytesToWrite += PlayCursor;
+	    BytesToWrite = (SoundOutput.SecondaryBufferSize - ByteToLock);
+	    BytesToWrite += TargetCursor;
 	  }
 	  else
 	  {
-	    BytesToWrite = PlayCursor - ByteToLock;
+	    BytesToWrite = TargetCursor - ByteToLock;
 	    
 	  }
-
-	  // TODO : Switch to a sine wave
-	  VOID* Region1;
-	  DWORD Region1Size;
-
-	  VOID* Region2;
-	  DWORD Region2Size;
-
-	  if(SUCCEEDED(GlobalSecondaryBuffer->Lock(ByteToLock, BytesToWrite,
-						   &Region1, &Region1Size,
-						   &Region2, &Region2Size,
-						   0)))
-	  {
-	    // TODO: asset that region sizes are valid
-
-	    // TODO: Collapse these two loops
-
-	    int16* SampleOut = (int16*)Region1;
-	    DWORD Region1SampleCount = Region1Size / BytesPerSample;
-
-	    for( DWORD SampleIndex = 0; SampleIndex < Region1SampleCount; ++SampleIndex)
-	    { 
-	      // %2 == 0 high wawve square
-	      int16 SampleValue = ((RunningSampleIndex++ / HalfSquareWavePeriod) % 2) ? ToneVolume : -ToneVolume;
-	      *SampleOut++ = SampleValue;
-	      *SampleOut++ = SampleValue;
-	    }
-	    GlobalSecondaryBuffer->Unlock(Region1, Region1Size, Region2, Region2Size);
-	  }
+	  
+	  Win32FillSoundBuffer(&SoundOutput, ByteToLock, BytesToWrite);
 	}
-	
+
 	win32_window_dimension Dimension = Win32GetWindowDimension(Window);
-	
-	Win32DisplayBufferInWindow(GlobalBackBuffer, DeviceContext,
+	Win32DisplayBufferInWindow(&GlobalBackBuffer, DeviceContext,
 				   Dimension.Width, Dimension.Height);
 
 	
