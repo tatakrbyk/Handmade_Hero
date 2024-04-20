@@ -10,6 +10,8 @@ Almost all code here is authored by Casey Muratori.
 - [Day 6: Gamepad and Keyboard Input](#day-6-gamepad-and-keyboard-input)
 - [Day 7: Initializing DirectSound](#day-7-initializing-directsound)
 - [Day 8: Writing a Square Wave to DirectSound](#day-8-writing-a-square-wave-to-directsound)
+- [Day 9: Variable-Pitch Sine Wave Output](#day-9-variable-pitch-sine-wave-output)
+- [Day 10: QueryPerformanceCounter and RDTSC](#day-10-queryperformancecounter-and-rdtsc)
 
 ### Day 2: Opening a Win32 Window
 
@@ -62,3 +64,16 @@ Almost all code here is authored by Casey Muratori.
 ### Day 8: Writing a Square Wave to DirectSound
 
 - `Lock`, `Unlock`, `GetCurrentPosition`, `Play`
+
+### Day 9: Variable-Pitch Sine Wave Output
+
+- `sinf`
+- `win32_sound_output`, `Win32FillSoundBuffer`
+- `tSine`, `LatencySampleCount`
+- We need to handle xinput deadzone in the future
+
+### Day 10: QueryPerformanceCounter and RDTSC
+
+- `QueryPerformanceCounter`, `LARGE_INTEGER`, `QuyerPerformanceFrequency`
+- `wsprintf`, `__rdtsc`
+

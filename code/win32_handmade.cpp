@@ -1,11 +1,12 @@
   
-#include <Windows.h>
+#include <windows.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <xinput.h>
 #include <dsound.h>
-#include <stdio.h>
 
-// TODO(taha): ReWrire sine func
+
+// TODO(taha): Implement sine ourselves
 #include <math.h>
 
 #define internal static
@@ -14,11 +15,6 @@
 
 #define Pi32 3.14159265359f
 
-typedef uint8_t uint8;
-typedef uint16_t uint16;
-typedef uint32_t uint32;
-typedef uint64_t uint64;
-
 typedef int8_t int8;
 typedef int16_t int16;
 typedef int32_t int32;
@@ -26,11 +22,17 @@ typedef int64_t int64;
 
 typedef int32 bool32;
 
+typedef uint8_t uint8;
+typedef uint16_t uint16;
+typedef uint32_t uint32;
+typedef uint64_t uint64;
+
 typedef float real32;
 typedef double real64;
 
 struct win32_offscreen_buffer
 {
+  // NOTE : Pixels are always 32-bits wide. Mmeory Order BB GG RB XX
   BITMAPINFO Info;
   void *Memory;
   int Width;
@@ -45,7 +47,7 @@ struct win32_window_dimension
 };
 
   
-global_variable bool GlobalRunning;
+global_variable bool32 GlobalRunning;
 global_variable win32_offscreen_buffer GlobalBackBuffer;
 global_variable LPDIRECTSOUNDBUFFER GlobalSecondaryBuffer;
 
@@ -79,11 +81,11 @@ Win32LoadXInput(void)
   HMODULE XInputLibrary = LoadLibraryA("xinput1_4.dll");
 
   if(!XInputLibrary){
-    HMODULE XInputLibrary = LoadLibraryA("xinput9_1_0.dll");
+     XInputLibrary = LoadLibraryA("xinput9_1_0.dll");
   }
   
   if(!XInputLibrary){
-    HMODULE XInputLibrary = LoadLibraryA("xinput1_3.dll");
+     XInputLibrary = LoadLibraryA("xinput1_3.dll");
   }
 
   if(XInputLibrary)
@@ -112,24 +114,24 @@ Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferSize)
 
   if(DSoundLibrary)
   {
-    direct_sound_create *DirectSoundCreate_ = (direct_sound_create*) GetProcAddress(DSoundLibrary, "DirectSoundCreate");
-    
-    LPDIRECTSOUND DirectSound;
- 
+    // NOTE: Get a DirectSound object! - cooperative
+    direct_sound_create *DirectSoundCreate = (direct_sound_create*) GetProcAddress(DSoundLibrary, "DirectSoundCreate");
+
     // TODO: Double-check that this works on XP - DirectSound8 or 7???????
-    if(DirectSoundCreate_ && SUCCEEDED(DirectSoundCreate_(0, &DirectSound, 0)))
+    LPDIRECTSOUND DirectSound;
+
+    if(DirectSoundCreate && SUCCEEDED(DirectSoundCreate(0, &DirectSound, 0)))
     {
       WAVEFORMATEX WaveFormat = {}; // zero init
 
       WaveFormat.wFormatTag = WAVE_FORMAT_PCM;
       WaveFormat.nChannels = 2;
       WaveFormat.nSamplesPerSec = SamplesPerSecond;
-      WaveFormat.nAvgBytesPerSec = WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
-      WaveFormat.nBlockAlign = (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
       WaveFormat.wBitsPerSample = 16;
+      WaveFormat.nBlockAlign = (WaveFormat.nChannels * WaveFormat.wBitsPerSample) / 8;
+      WaveFormat.nAvgBytesPerSec = WaveFormat.nSamplesPerSec * WaveFormat.nBlockAlign;
       WaveFormat.cbSize = 0;
 
-      // NOTE: Get a DirectSound object! - cooperative
       if(SUCCEEDED(DirectSound->SetCooperativeLevel(Window, DSSCL_PRIORITY)))
       {
 	DSBUFFERDESC BufferDescription = {};
@@ -174,17 +176,21 @@ Win32InitDSound(HWND Window, int32 SamplesPerSecond, int32 BufferSize)
       BufferDescription.lpwfxFormat = &WaveFormat;
 
       HRESULT Error = DirectSound->CreateSoundBuffer(&BufferDescription, &GlobalSecondaryBuffer, 0);
-
       if(SUCCEEDED(Error))
       {
-	// NOTE: Start it playing!
-	OutputDebugStringA("Secondary buffer created successfuly. \n");
+        // NOTE: Start it playing!
+        OutputDebugStringA("Secondary buffer created successfuly. \n");
       }
+     
     }
     else
     {
 	// TODO: Diagnostic
     }
+  }
+  else
+  {
+    // TODO: Diagnostic
   }
 }
 
@@ -220,7 +226,7 @@ RenderWeirdGradient(win32_offscreen_buffer *Buffer, int BlueOffset, int GreenOff
 }
 
 internal void
-Win32ResizeDIDSection(win32_offscreen_buffer *Buffer ,int Width, int Height)
+Win32ResizeDIBSection(win32_offscreen_buffer *Buffer ,int Width, int Height)
 {
   // TODO: bulletproof this;
   // maybe dont free first, free after then free first it that fails
@@ -234,6 +240,10 @@ Win32ResizeDIDSection(win32_offscreen_buffer *Buffer ,int Width, int Height)
   Buffer->Height = Height;
   int BytesPerPixel = 4;
 
+  // NOTE: When the biHeight fielf is negative. this is the clue to
+  // windows to treat this bitmap as top-down, not bottom-up, meaning that
+  // the first three bytes of the image are the color for the top left pixel
+  // in the bitmap, not the bottom left.
   Buffer->Info.bmiHeader.biSize = sizeof(Buffer->Info.bmiHeader);
   Buffer->Info.bmiHeader.biWidth = Buffer->Width;
   Buffer->Info.bmiHeader.biHeight = -Buffer->Height; // negative is top-down, positive is bottom-up
@@ -242,7 +252,7 @@ Win32ResizeDIDSection(win32_offscreen_buffer *Buffer ,int Width, int Height)
   Buffer->Info.bmiHeader.biCompression = BI_RGB;
 
   int BitmapMemorySize = (Buffer->Width * Buffer->Height) * BytesPerPixel;
-  Buffer->Memory = VirtualAlloc(0, BitmapMemorySize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE); // ?  Mem reserve
+  Buffer->Memory = VirtualAlloc(0, BitmapMemorySize, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE); 
 
   Buffer->Pitch = Width * BytesPerPixel;
 }
@@ -313,8 +323,8 @@ Win32MainWindowCallback(HWND Window,
 		case WM_KEYUP:
 		{
 		  uint32 VKCode = WParam;
-		  bool32 WasDown = (LParam & (1 << 30) != 0);
-	       	  bool32 IsDown = (LParam & (1 << 31)) == 0;
+		  bool32 WasDown = ((LParam & (1 << 30)) != 0);
+	       	  bool32 IsDown = ((LParam & (1 << 31)) == 0);
 
 	          if (WasDown != IsDown)
 	          {
@@ -457,10 +467,16 @@ WinMain(HINSTANCE Instance,
 	LPSTR CommandLine,
 	int ShowCode)
 {
+  
+  LARGE_INTEGER PerfCountFrequencyResult;
+  QueryPerformanceFrequency(&PerfCountFrequencyResult);
+  int64 PerfCountFrequency = PerfCountFrequencyResult.QuadPart;
+
   Win32LoadXInput();
+  
   WNDCLASSA WindowClass = {}; // zero initialize
 
-  Win32ResizeDIDSection(&GlobalBackBuffer, 1280, 720);
+  Win32ResizeDIBSection(&GlobalBackBuffer, 1280, 720);
   
   WindowClass.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC; // always redraw when resize
   WindowClass.lpfnWndProc = Win32MainWindowCallback;
@@ -470,6 +486,7 @@ WinMain(HINSTANCE Instance,
   //WindowClass.lpszMenuName = ; // create like File, Ed,t Options, Help 
   WindowClass.lpszClassName = "HandmadeHeroWindowClass";
 
+ 
   if(RegisterClassA(&WindowClass))
   {
     HWND Window = CreateWindowExA(0, //DWORD dwExStyle,
@@ -510,6 +527,11 @@ WinMain(HINSTANCE Instance,
       GlobalSecondaryBuffer->Play(0, 0, DSBPLAY_LOOPING);
       
       GlobalRunning = true;
+
+      LARGE_INTEGER LastCounter;
+      QueryPerformanceCounter(&LastCounter); // the return value is nonzero.
+
+      uint64 LastCycleCount = __rdtsc();
       
       while (GlobalRunning){
 	
@@ -557,11 +579,6 @@ WinMain(HINSTANCE Instance,
 
 	    SoundOutput.ToneHz = 512 + (int)(256.0f * ((real32)StickY / 30000.0f));
 	    SoundOutput.WavePeriod = SoundOutput.SamplesPerSecond / SoundOutput.ToneHz;
-	    if(AButton)
-	   {
-	      SoundOutput.ToneHz = 512;
-	      SoundOutput.WavePeriod = SoundOutput.SamplesPerSecond / SoundOutput.ToneHz;
-	   }
 	  }
 	  else
 	  {
@@ -600,11 +617,32 @@ WinMain(HINSTANCE Instance,
 	  Win32FillSoundBuffer(&SoundOutput, ByteToLock, BytesToWrite);
 	}
 
+	
+	
 	win32_window_dimension Dimension = Win32GetWindowDimension(Window);
 	Win32DisplayBufferInWindow(&GlobalBackBuffer, DeviceContext,
 				   Dimension.Width, Dimension.Height);
 
+	uint64 EndCycleCount = __rdtsc();
 	
+	LARGE_INTEGER EndCounter;
+	QueryPerformanceCounter(&EndCounter);
+
+	
+
+	// TODO(tata): Display the value here
+	uint64 CyclesElapsed = EndCycleCount - LastCycleCount;
+	int64 CounterElapsed = EndCounter.QuadPart - LastCounter.QuadPart;
+	real64 MSPerFrame = (((1000.0f * (real64)CounterElapsed) / (real64)PerfCountFrequency));//millisecond
+	real64 FPS = (real64)PerfCountFrequency / (real64)CounterElapsed ;
+	real64 MCPF = ((real64) CyclesElapsed / ( 1000.0f * 1000.0f)); // Mega Cycle Per Frame
+
+	char Buffer[256];	
+	sprintf(Buffer, "%.02fms/f  %.02ff/s %.02fc/f\n", MSPerFrame, FPS, MCPF);
+	OutputDebugStringA(Buffer);
+
+	LastCounter = EndCounter;
+	LastCycleCount = EndCycleCount;
       }
     }
     
