@@ -1,13 +1,22 @@
-  
-#include <windows.h>
+/*
+	TODO:  THIS IS NOT A FINAL PLATFORM LAYER
+	- Saved game locations
+	- Getting a handle to our own executable file
+	- Asset loading path
+	- Threading (lauche a thread)
+	- Raw Input (support for multiple keyboards)
+	- Sleep/TimeBeginPeriod
+	- ClipCursor() (for multimonitor support)
+	- Fullscreen support
+	- WM_SETCURDOR (control cursor visibility)
+	- QueryCancelAutoplay
+	- WM_ACTIVATEAPP (for when we are not the active application)
+	- Blt speed improvements (BitBlt)
+	- Hardware acceleration (OpenDL or Direct3D or BOTH??)
+	- GetKeyboardLayout (for French keyboards, internation WASD support)
+	Just a partial list of stuff.
+*/
 #include <stdint.h>
-#include <stdio.h>
-#include <xinput.h>
-#include <dsound.h>
-
-
-// TODO(taha): Implement sine ourselves
-#include <math.h>
 
 #define internal static
 #define local_persist static;
@@ -29,6 +38,16 @@ typedef uint64_t uint64;
 
 typedef float real32;
 typedef double real64;
+
+#include "handmade.cpp"
+
+#include <windows.h>
+#include <stdio.h>
+#include <xinput.h>
+#include <dsound.h>
+
+// TODO(taha): Implement sine ourselves
+#include <math.h>
 
 struct win32_offscreen_buffer
 {
@@ -205,25 +224,6 @@ win32_window_dimension Win32GetWindowDimension(HWND Window)
   return (Result);
 }
 
-internal void
-RenderWeirdGradient(win32_offscreen_buffer *Buffer, int BlueOffset, int GreenOffset)
-{
-  uint8 *Row = (uint8 *)Buffer->Memory;
-
-  for(int y = 0; y < Buffer->Height; ++y)
-  {
-    uint32 *Pixel = (uint32*)Row;
-
-    for(int x = 0; x < Buffer->Width; ++x)
-    {
-      uint8 Green = (y + GreenOffset);
-      uint8 Blue = (x + BlueOffset);
-
-      *Pixel++ = ((Green << 8) | Blue);
-    }
-    Row += Buffer->Pitch;
-  }
-}
 
 internal void
 Win32ResizeDIBSection(win32_offscreen_buffer *Buffer ,int Width, int Height)
@@ -410,7 +410,6 @@ struct win32_sound_output
 internal void
 Win32FillSoundBuffer(win32_sound_output *SoundOutput, DWORD ByteToLock, DWORD BytesToWrite)
 {
-  // TODO: Switch to a sine wave
   VOID *Region1;
   DWORD Region1Size;
 
@@ -460,12 +459,12 @@ Win32FillSoundBuffer(win32_sound_output *SoundOutput, DWORD ByteToLock, DWORD By
     }
 }
 
-	
 int CALLBACK
 WinMain(HINSTANCE Instance,
 	HINSTANCE PrevInstance,
 	LPSTR CommandLine,
 	int ShowCode)
+
 {
   
   LARGE_INTEGER PerfCountFrequencyResult;
@@ -585,8 +584,15 @@ WinMain(HINSTANCE Instance,
 	    // Note : The controller is not available
 	  }
 	}
-	
-        RenderWeirdGradient(&GlobalBackBuffer, XOffset, YOffset);
+
+	game_offscreen_buffer Buffer = {};
+	Buffer.Memory = GlobalBackBuffer.Memory;
+	Buffer.Width = GlobalBackBuffer.Width;
+	Buffer.Height = GlobalBackBuffer.Height;
+	Buffer.Pitch = GlobalBackBuffer.Pitch;
+
+	GameUpdateAndRender(&Buffer, XOffset, YOffset);
+        
 
 	// Note: Direct Sound Output Text
 	DWORD PlayCursor;
@@ -637,9 +643,9 @@ WinMain(HINSTANCE Instance,
 	real64 FPS = (real64)PerfCountFrequency / (real64)CounterElapsed ;
 	real64 MCPF = ((real64) CyclesElapsed / ( 1000.0f * 1000.0f)); // Mega Cycle Per Frame
 
-	char Buffer[256];	
-	sprintf(Buffer, "%.02fms/f  %.02ff/s %.02fc/f\n", MSPerFrame, FPS, MCPF);
-	OutputDebugStringA(Buffer);
+	char BufferChar[256];	
+	sprintf(BufferChar, "%.02fms/f  %.02ff/s %.02fc/f\n", MSPerFrame, FPS, MCPF);
+	OutputDebugStringA(BufferChar);
 
 	LastCounter = EndCounter;
 	LastCycleCount = EndCycleCount;

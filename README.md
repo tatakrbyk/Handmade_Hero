@@ -12,6 +12,7 @@ Almost all code here is authored by Casey Muratori.
 - [Day 8: Writing a Square Wave to DirectSound](#day-8-writing-a-square-wave-to-directsound)
 - [Day 9: Variable-Pitch Sine Wave Output](#day-9-variable-pitch-sine-wave-output)
 - [Day 10: QueryPerformanceCounter and RDTSC](#day-10-queryperformancecounter-and-rdtsc)
+- [Day 11: The Basics of Platform API Design](#day-11-the-basics-of-platform-api-design)
 
 ### Day 2: Opening a Win32 Window
 
@@ -77,3 +78,6 @@ Almost all code here is authored by Casey Muratori.
 - `QueryPerformanceCounter`, `LARGE_INTEGER`, `QuyerPerformanceFrequency`
 - `wsprintf`, `__rdtsc`
 
+### Day 11: The Basics of Platform API Design
+
+- Treat our game as a service, rather than the operating system.
