@@ -13,6 +13,7 @@ Almost all code here is authored by Casey Muratori.
 - [Day 9: Variable-Pitch Sine Wave Output](#day-9-variable-pitch-sine-wave-output)
 - [Day 10: QueryPerformanceCounter and RDTSC](#day-10-queryperformancecounter-and-rdtsc)
 - [Day 11: The Basics of Platform API Design](#day-11-the-basics-of-platform-api-design)
+- [Day 12: Platform-Independent Sound Output](#day-12-platform-independent-sound-output)
 
 ### Day 2: Opening a Win32 Window
 
@@ -81,3 +82,8 @@ Almost all code here is authored by Casey Muratori.
 ### Day 11: The Basics of Platform API Design
 
 - Treat our game as a service, rather than the operating system.
+
+
+### Day 12: Platform-Independent Sound Output
+
+- Move sound rendering logic to handmade.cpp
