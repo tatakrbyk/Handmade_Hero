@@ -14,6 +14,7 @@ Almost all code here is authored by Casey Muratori.
 - [Day 10: QueryPerformanceCounter and RDTSC](#day-10-queryperformancecounter-and-rdtsc)
 - [Day 11: The Basics of Platform API Design](#day-11-the-basics-of-platform-api-design)
 - [Day 12: Platform-Independent Sound Output](#day-12-platform-independent-sound-output)
+- [Day 13: Platform-Independent User Input](#day-13-platform-independent-user-input)
 
 ### Day 2: Opening a Win32 Window
 
@@ -87,3 +88,9 @@ Almost all code here is authored by Casey Muratori.
 ### Day 12: Platform-Independent Sound Output
 
 - Move sound rendering logic to handmade.cpp
+
+### Day 13: Platform-Independent User Input
+
+- Define `game_input`, `game_controller_input`, `game_button_state`
+- Store OldInput and NewInput and do ping-pang at end of every frame
+- Define `ArrayCount` macro
