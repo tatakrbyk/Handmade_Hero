@@ -22,6 +22,32 @@
 #define Terabytes(Value) (Gigabytes(Value)*1024LL)   
 
 #define ArrayCount(Array) (sizeof(Array) / sizeof(Array)[0])
+
+inline uint32
+SafeTruncateUInt64(uint64 Value)
+{
+  // TODO: Defines for maximum values
+  Assert(Value <= 0xFFFFFFFF);
+  uint32 Result = (uint32)Value;
+
+  return(Result);
+}
+#if HANDMADE_INTERNAL
+/* IMPORTANT():
+   These are NOT for doing anything in the shipping game 
+   they are blocking and the write doesn't protect against lost data'
+*/
+struct debug_read_file_result
+{
+  uint32 ContentsSize;
+  void *Contents;
+};
+internal debug_read_file_result DEBUGPlatformReadEntireFile(char *Filename);
+internal void DEBUGPlatformFreeFileMemory(void *Memory);
+internal bool32 DEBUGPlatformWriteEntireFile(char *Filename, uint32 MemorySize, void *Memory);
+#endif
+				    
+				    
 struct game_offscreen_buffer
 {
   void *Memory;
