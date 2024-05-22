@@ -15,7 +15,9 @@ Almost all code here is authored by Casey Muratori.
 - [Day 11: The Basics of Platform API Design](#day-11-the-basics-of-platform-api-design)
 - [Day 12: Platform-Independent Sound Output](#day-12-platform-independent-sound-output)
 - [Day 13: Platform-Independent User Input](#day-13-platform-independent-user-input)
-
+- [Day 14: Platform-Independent Game Memory](#day-14-platform-independent-game-memory)
+- [Day 15: Platform-Independent Debug File](#day-15-platform-independent-debug-file)
+- [Day 16: Visual Studio Compiler Switches](#day-16-visual-studio-compiler-switches)
 ### Day 2: Opening a Win32 Window
 
 - `WNDCLASS`, `RegisterClass`
@@ -94,3 +96,30 @@ Almost all code here is authored by Casey Muratori.
 - Define `game_input`, `game_controller_input`, `game_button_state`
 - Store OldInput and NewInput and do ping-pang at end of every frame
 - Define `ArrayCount` macro
+
+### Day 14: Platform-Independent Game Memory
+
+- Use a `game_memory` struct to handle all memory related stuff
+- We have permannent storage and trasient storage in our memory
+- We require the memory allocated to be cleared to zero
+- Define `Assert` macro
+- Specify base address when we do `VirtualAlloc` for debugging purpose in internal build
+
+### Day 15: Platform-Independent Debug File
+
+- Define `DebugPlatformReadFile`, `DebugPlatformWriteFile` and `DebugPlatformFreeFileMemory` only when we are using internal build
+- Define `SafeTruncateUInt64` inline functions
+- `CreateFile`, `GetFileSizeEx`, `ReadFile`
+
+### Day 16: Visual Studio Compiler Switches
+- VS compiler switches:
+  - `-WX`, `-W4`: enable warning level 4 and treat warnings as errors
+  - `-wd`: turn off some warnings
+  - `-MT`: static link C runtime library
+  - `-Oi`: generates intrinsic functions.
+  - `-Od`: disable optimization ( usually used for debugging)
+  - `-GR-`: disable run-time type information, we don't need this
+  - `-Gm-`: disable minimal rebuild
+  - `-EHa-`: disable exception-handling
+  - `-nologo`: don't print compiler info
+  - `-FC`: full Path of Source Code File in Diagnostics

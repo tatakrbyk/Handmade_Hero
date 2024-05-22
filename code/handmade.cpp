@@ -34,8 +34,8 @@ RenderWeirdGradient(game_offscreen_buffer *Buffer, int BlueOffset, int GreenOffs
 
     for(int x = 0; x < Buffer->Width; ++x)
     {
-      uint8 Green = (y + GreenOffset);
-      uint8 Blue = (x + BlueOffset);
+      uint8 Green = (uint8)(y + GreenOffset);
+      uint8 Blue = (uint8)(x + BlueOffset);
 
       *Pixel++ = ((Green << 8) | Blue);
     }
@@ -58,7 +58,7 @@ GameUpdateAndRender(game_memory *Memory, game_input *Input, game_offscreen_buffe
     debug_read_file_result File = DEBUGPlatformReadEntireFile(Filename);
     if(File.Contents)
     {
-      DEBUGPlatformWriteEntireFile("w:/handmade/data/test.out", File.ContentsSize, File.Contents);
+      DEBUGPlatformWriteEntireFile("test.out", File.ContentsSize, File.Contents);
       DEBUGPlatformFreeFileMemory(File.Contents);
     }
     
@@ -72,7 +72,7 @@ GameUpdateAndRender(game_memory *Memory, game_input *Input, game_offscreen_buffe
   if(Input0 ->IsAnalog)
   {
     // NOTE: Use analog movement
-    GameState->BlueOffset = (int)4.0f*(Input0->EndX);
+    GameState->BlueOffset += (int)(4.0f*(Input0->EndX));
     GameState->ToneHz = 256 + (int)(128.0f*(Input0->EndY));
   }
   if(Input0->Down.EndedDown)
