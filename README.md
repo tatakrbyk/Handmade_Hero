@@ -18,6 +18,7 @@ Almost all code here is authored by Casey Muratori.
 - [Day 14: Platform-Independent Game Memory](#day-14-platform-independent-game-memory)
 - [Day 15: Platform-Independent Debug File](#day-15-platform-independent-debug-file)
 - [Day 16: Visual Studio Compiler Switches](#day-16-visual-studio-compiler-switches)
+- [Day 17: Unified Keyboard and Gamepad Input](#day-17-unified-keyboard-and-gamepad-input)
 ### Day 2: Opening a Win32 Window
 
 - `WNDCLASS`, `RegisterClass`
@@ -123,3 +124,11 @@ Almost all code here is authored by Casey Muratori.
   - `-EHa-`: disable exception-handling
   - `-nologo`: don't print compiler info
   - `-FC`: full Path of Source Code File in Diagnostics
+
+### Day 17: Unified Keyboard and Gamepad Input
+
+- Add one controller, so we have 5 controllers now
+- Check whether union in game_controller_input is aligned
+
+
+
