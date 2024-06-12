@@ -19,6 +19,7 @@ Almost all code here is authored by Casey Muratori.
 - [Day 15: Platform-Independent Debug File](#day-15-platform-independent-debug-file)
 - [Day 16: Visual Studio Compiler Switches](#day-16-visual-studio-compiler-switches)
 - [Day 17: Unified Keyboard and Gamepad Input](#day-17-unified-keyboard-and-gamepad-input)
+- [Day 18: Enforcing a Video Frame Rate](#day-18-enforcing-a-video-frame-rate)
 ### Day 2: Opening a Win32 Window
 
 - `WNDCLASS`, `RegisterClass`
@@ -129,6 +130,13 @@ Almost all code here is authored by Casey Muratori.
 
 - Add one controller, so we have 5 controllers now
 - Check whether union in game_controller_input is aligned
+
+### Day 18: Enforcing a Video Frame Rate
+
+- We need to find a way to reliably retrieve monitor refresh rate?
+- We define `GameUpdateHz` based on `MonitorRefreshHz`
+- Use `Sleep` to wait for the remaining time
+- Use `timeBeginPeriod` to modify scheduler granularity
 
 
 
