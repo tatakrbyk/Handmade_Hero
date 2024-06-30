@@ -20,6 +20,9 @@ Almost all code here is authored by Casey Muratori.
 - [Day 16: Visual Studio Compiler Switches](#day-16-visual-studio-compiler-switches)
 - [Day 17: Unified Keyboard and Gamepad Input](#day-17-unified-keyboard-and-gamepad-input)
 - [Day 18: Enforcing a Video Frame Rate](#day-18-enforcing-a-video-frame-rate)
+- [Day 19: Improving Audio Synchronization](#day-19-improving-audio-synchronization)
+- [Day 20: Debugging the Audio Sync](#day-20-debugging-the-audio-sync)
+
 ### Day 2: Opening a Win32 Window
 
 - `WNDCLASS`, `RegisterClass`
@@ -138,5 +141,13 @@ Almost all code here is authored by Casey Muratori.
 - Use `Sleep` to wait for the remaining time
 - Use `timeBeginPeriod` to modify scheduler granularity
 
+### Day 19: Improving Audio Synchronization
 
+- Record last play cursor and write cursor
+- Define `Win32DebugSyncPlay` to draw it
+- Use a while loop to test direct sound audio update frequency
+
+### Day 20: Debugging the Audio Sync
+
+- Compute audio latency seconds using write cursor - play cursor
 
